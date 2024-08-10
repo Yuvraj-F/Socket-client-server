@@ -11,6 +11,11 @@ Author: Yuvraj Singh Fagotra
 import sys
 import socket
 
+#Globals
+NUM_ARGUMENTS = 3
+MIN_PORT = 1024
+MAX_PORT = 64000
+
 """ dt-response format """
 MagicNo = 0x36FB                #Identifies packet as a DateTime packet (16-bits)
 PacketType = 0x0002             #Identifies packet as a dt-request packet (16-bits)
@@ -26,7 +31,25 @@ Text = "variable"               #Text representation of response (variable)
 def main():
     """ args must be three port numbers that are used for English, Maori and German
         respectively. """
-    for arg in sys.argv:
-        print(arg)
+    
+    #Get command line arguments
+    arguments = sys.argv[1:]
+    
+    #Check for Errors
+    if len(arguments) != 3:
+        print("ERROR: Incorrect number of command line arguments")
+        return
+    if len(set(arguments)) != 3:
+        print("ERROR: Duplicate ports given")
+        return
+    for arg in arguments:
+        if arg <= 0:
+            print(f"ERROR: Given port '{arg}' is not a positive integer")
+            return
+    for arg in arguments:
+        if arg < MIN_PORT or arg > MAX_PORT:
+            print(f"ERROR: Given port '{arg}' is not in the range [1024, 64000]")
+            return
+    
         
 main()
