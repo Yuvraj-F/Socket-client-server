@@ -10,8 +10,8 @@ Author: Yuvraj Singh Fagotra
 
 """ dt-request format """
 
-import socket
-import sys
+from sys import exit, argv
+from socket import socket, AF_INET, SOCK_STREAM, getaddrinfo
 
 MagicNo = 0x36FB                #Identifies packet as a DateTime packet (16-bits)
 PacketType = 0x0001             #Identifies packet as a dt-request packet (16-bits)
