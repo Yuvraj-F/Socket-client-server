@@ -52,6 +52,19 @@ def create_server_socket(lang, port):
     
     return s
 
+
+def receive():
+    """ """
+    pass
+
+
+def exit_server(sockets):
+    
+    for s in sockets:
+        if s != None:
+            s.close()    
+    exit()
+
 def main():
     """ args must be three port numbers that are used for English, Maori and German
         respectively. """
@@ -78,35 +91,31 @@ def main():
     
     #create a seperate socket for each of the three languages. initialise sockets
     #here so they can be closed later if error occurs
-    eng_s = None
-    maori_s = None
-    german_s = None
-    SOCKETS = {eng_s, maori_s, german_s}
+    sockets = [None, None, None]
     
     try:
-        eng_s = create_socket("English", int(arguments[0]))
-        maori_s = create_socket("Māori", int(arguments[1]))
-        german_s = create_socket("German", int(arguments[2]))
+        sockets[0] = create_server_socket("English", int(arguments[0]))
+        sockets[1] = create_server_socket("Māori", int(arguments[1]))
+        sockets[2] = create_server_socket("German", int(arguments[2]))
         
     #If error occurs, close all sockets, print error message, and exit program
-    except OSError as err:
-        
-        for s in SOCKETS:
-            if s != None:
-                s.close()
-                
+    except OSError as err:     
         print(err)
-        exit()
+        exit_server(sockets)
     
+    #Enter loop until one of the sockets receive 
+    print("Waiting for requests...")
+    curr_sock_list, _, _ = select(sockets, [], [], 20)
     
-    #Enter loop until 
-    #print("Waiting for requests...")
-    #packet, _, __ = select([eng_s, maori_s, german_s], [], [], 5)
-    #print("Timeout")
-    eng_s.close()
-    maori_s.close()
-    german_s.close()
+    curr_sock = curr_sock_list[0]
+    recv_data, client_address = curr_sock.recvfrom(64)   
+    curr_sock.getsockname()
+    
+    exit_server(sockets)
        
     
-        
+""" TEST COMMANDS """
+#python3 src/Server.py 15442 6484 31912
+#py src/Server.py 15442 6484 31912
+
 main()

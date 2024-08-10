@@ -67,7 +67,6 @@ def main():
     
     #Get command line arguments
     arguments = argv[1:]
-    arguments = ["time", "youtube.com", 4958]
     
     #Check for errors
     
@@ -116,6 +115,9 @@ def main():
 
     s.close()
     
+""" TEST COMMANDS """
+#python3 src/Client.py time localhost 15442
+#py src/Client.py time localhost 15442
 
 main()
 
