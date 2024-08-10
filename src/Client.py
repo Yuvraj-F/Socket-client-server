@@ -25,24 +25,26 @@ REQUEST_TYPE = {"date": 0x1,
 
 def create_client_socket():
     """ """
-    s = None
+    sock = None
     
     try:
-        s = socket(AF_INET, SOCK_DGRAM)
+        sock = socket(AF_INET, SOCK_DGRAM)
     except OSError:
         
-        if s != None:
-            s.close()
+        if sock != None:
+            sock.close()
             
         print("ERROR: Socket creation failed")
         exit()
+        
+    sock.settimeout(1)
     
-    return s    
+    return sock    
 
 def create_request_packet(request_type):
-    """ creates and returns a dt-request packet. """
+    """ Creates and returns a dt-request packet. """
     
-    #initialize packet with 6 bytes
+    #initialize packet of size 6 bytes
     packet = bytearray(6)
     
     #Set MagicNo field
@@ -100,20 +102,20 @@ def main():
     family, sock_type, proto, canonname, address = services[0] 
     
     #Create socket
-    s = create_client_socket()
+    sock = create_client_socket()
         
     #Create dt_request packet    
     packet = create_request_packet(arguments[0])
     
     #Send dt_request packet to server
     try:
-        amount = s.sendto(packet, address)
+        amount = sock.sendto(packet, address)
     except (OSError, TimeoutError):
         print("ERROR: Sending failed")
-        exit_client(s)
+        exit_client(sock)
         
 
-    s.close()
+    sock.close()
     
 """ TEST COMMANDS """
 #python3 src/Client.py time localhost 15442
