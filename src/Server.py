@@ -52,28 +52,6 @@ MONTHS = {1: ("January", "Kohi-tātea", "Januar"),
           12: ("December", "Hakihea", "Dezember"),}
 
 
-def create_text_repr(date_time, lang_index, request_type):
-    """ create a textual representation of given date and time in the language 
-        specified by the lang_index. 
-        
-        1 = date
-        2 = time """
-    
-    day, month, year = date_time.day, date_time.month, date_time.year
-    hour, minute = date_time.hour, date_time.minute
-    
-    result = {1: (f"Today's date is {MONTHS[month][lang_index]} {day}, {year}", 
-                  f"Ko te rā o tēnei rā ko {MONTHS[month][lang_index]} {day}, {year}",
-                  f"Heute ist der {day}. {MONTHS[month][lang_index]} {year}"),
-              
-              2: (f"The current time is {hour:02d}:{minute:02d}",
-                  f"Ko te wā o tēnei wā {hour:02d}:{minute:02d}",
-                  f"Die Uhrzeit ist {hour:02d}:{minute:02d}")}
-    
-    return result[request_type][lang_index]
-    
-
-
 def create_server_socket(lang, port):
     """ Before creating the socket, prints a status message which specifies the 
         language the socket is being used for and the associated port number.
@@ -83,21 +61,21 @@ def create_server_socket(lang, port):
     
     print(f"Binding {lang} to port {port}")
     
-    s = None
+    sock = None
 
     try:
-        s = socket(AF_INET, SOCK_DGRAM)
+        sock = socket(AF_INET, SOCK_DGRAM)
     except OSError:
         raise OSError("ERROR: Socket creation failed")
         
     try:
-        s.bind(("localhost", port))
-        s.settimeout(1)
+        sock.bind(("localhost", port))
+        sock.settimeout(1)
     except OSError:
         raise OSError("ERROR: Socket binding failed")
     
     
-    return s
+    return sock
 
 
 def validate_request(data):
@@ -132,7 +110,7 @@ def receive_packet(sockets):
     
     #Extract dt-request packet and client address 
     try:
-        recv_data, client_address = sock.recvfrom(64)  
+        recv_data, client_address = sock.recvfrom(1024)  
         
     #Timeout exceeded
     except TimeoutError:
@@ -159,6 +137,27 @@ def receive_packet(sockets):
     
     return recv_data, client_address, sock
     
+
+def create_text_repr(date_time, lang_index, request_type):
+    """ create a textual representation of given date and time in the language 
+        specified by the lang_index. 
+        
+        1 = date
+        2 = time """
+    
+    day, month, year = date_time.day, date_time.month, date_time.year
+    hour, minute = date_time.hour, date_time.minute
+    
+    result = {1: (f"Today's date is {MONTHS[month][lang_index]} {day}, {year}", 
+                  f"Ko te rā o tēnei rā ko {MONTHS[month][lang_index]} {day}, {year}",
+                  f"Heute ist der {day}. {MONTHS[month][lang_index]} {year}"),
+              
+              2: (f"The current time is {hour:02d}:{minute:02d}",
+                  f"Ko te wā o tēnei wā {hour:02d}:{minute:02d}",
+                  f"Die Uhrzeit ist {hour:02d}:{minute:02d}")}
+    
+    return result[request_type][lang_index]
+
     
 def create_response_packet(data, lang_index, sock):
     """ Creates and returns dt-response packet. """
@@ -166,8 +165,13 @@ def create_response_packet(data, lang_index, sock):
     #Fetch current date and time
     curr_datetime = datetime.now()
     
-    #Prepare textual representation based on request type
-    text = create_text_repr(curr_datetime, lang_index, data[5])
+    #Prepare enoded text based on request type
+    encoded_text = create_text_repr(curr_datetime, lang_index, data[5]).encode("utf-8")
+    length_text = len(encoded_text)
+    
+    print(encoded_text)
+    
+    
 
 
 def validate_arguments(args):
@@ -222,12 +226,21 @@ def main():
         print(err)
         exit_server(sockets)
     
+    #Enter receive loop until unhandeld error
+    try:
+        while True:
+            request_packet, client_address, sock = receive_packet(sockets)
+            response_packet = create_response_packet(request_packet, sockets.index(sock), sock)
+    except Exception as err:
+        print(err)
+    finally:
+        exit_server(sockets)
+        
     request_packet, client_address, sock = receive_packet(sockets)
-    response_packet = create_response_packet(request_packet, sockets.index(sock), sock)
+    response_packet = create_response_packet(request_packet, sockets.index(sock), sock)   
     
     
     
-    exit_server(sockets)
        
     
 """ TEST COMMANDS """
