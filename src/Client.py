@@ -58,7 +58,37 @@ def create_request_packet(request_type):
     packet[5] = REQUEST_TYPE[request_type]
     
     return packet
+
+
+def validate_arguments(args):
+    """ makes sure the command line arguments are valid. returns services if 
+        given host name or ip address can be resolved """
     
+    #there must be NUM_ARGS arguments
+    if len(args) != NUM_ARGS:
+        raise ValueError("ERROR: Incorrect number of command line arguments")
+        
+    #First argument must be "date" or "time"
+    if args[0] not in REQUEST_TYPE.keys():
+        raise ValueError(f"ERROR: Request type '{args[0]}' is not valid")
+        
+    #Third argument must be positive and in the range [1024, 64000]
+    if int(args[2]) <= 0:
+        raise ValueError(f"ERROR: Given port '{args[2]}' is not a positive integer")
+ 
+    if int(args[2]) < MIN_PORT or int(args[2]) > MAX_PORT:
+        raise ValueError(f"ERROR: Given port '{args[2]}' is not in the range [1024, 64000]")
+ 
+        
+    #Second argument must be dotted ip address or hostname. If it can be resolved,
+    #extracts the address to use for sending requests to hosts
+    try:    
+        services = getaddrinfo(args[1], args[2], AF_INET, SOCK_DGRAM)
+    except gaierror:
+        raise ValueError("ERROR: Hostname resolution failed")
+   
+        
+    return services
     
 def exit_client(socket):
     socket.close()
@@ -69,33 +99,12 @@ def main():
     
     #Get command line arguments
     arguments = argv[1:]
-    
-    #Check for errors
-    
-    #there must be NUM_ARGS arguments
-    if len(arguments) != NUM_ARGS:
-        print("ERROR: Incorrect number of command line arguments")
-        exit()
-        
-    #First argument must be "date" or "time"
-    if arguments[0] not in REQUEST_TYPE.keys():
-        print(f"ERROR: Request type '{arguments[0]}' is not valid")
-        exit()
-        
-    #Third argument must be positive and in the range [1024, 64000]
-    if int(arguments[2]) <= 0:
-        print(f"ERROR: Given port '{arguments[2]}' is not a positive integer")
-        exit()    
-    if int(arguments[2]) < MIN_PORT or int(arguments[2]) > MAX_PORT:
-        print(f"ERROR: Given port '{arguments[2]}' is not in the range [1024, 64000]")
-        exit()  
-    
-    #Second argument must be dotted ip address or hostname. If it can be resolved,
-    #extracts the address to use for sending requests to hosts
+
+    #Check for error. If valid, get services based on given arguments
     try:    
-        services = getaddrinfo(arguments[1], arguments[2], AF_INET, SOCK_DGRAM)
-    except gaierror:
-        print("ERROR: Hostname resolution failed")
+        services = validate_arguments(arguments)
+    except ValueError as err:
+        print(err)
         exit()
     
     #extract address from services

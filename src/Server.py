@@ -100,7 +100,7 @@ def create_server_socket(lang, port):
     return s
 
 
-def is_valid_dt_request(data):
+def validate_request(data):
     """ Performs checks to validate dt-request packet. return True if valid,
         False otherwise."""
     
@@ -146,7 +146,7 @@ def receive_packet(sockets):
     
     #Check packet validity
     try:
-        is_valid_dt_request(recv_data)
+        validate_request(recv_data)
     except ValueError as err:
         print(err)
         return
@@ -170,6 +170,25 @@ def create_response_packet(data, lang_index, sock):
     text = create_text_repr(curr_datetime, lang_index, data[5])
 
 
+def validate_arguments(args):
+    """ makes sure the command line arguments are valid. """
+    
+    if len(args) != NUM_ARGS:
+        raise ValueError("ERROR: Incorrect number of command line arguments")
+        
+    if len(set(args)) != NUM_ARGS:
+        raise ValueError("ERROR: Duplicate ports given")
+        
+    for arg in args:
+        if int(arg) <= 0:
+            raise ValueError(f"ERROR: Given port '{arg}' is not a positive integer")
+            
+    for arg in args:
+        if int(arg) < MIN_PORT or int(arg) > MAX_PORT:
+            raise ValueError(f"ERROR: Given port '{arg}' is not in the range [1024, 64000]")
+              
+
+
 def exit_server(sockets):
     
     for sock in sockets:
@@ -185,21 +204,11 @@ def main():
     arguments = argv[1:]
     
     #Check for errors
-    if len(arguments) != NUM_ARGS:
-        print("ERROR: Incorrect number of command line arguments")
+    try:
+        validate_arguments(arguments)
+    except ValueError as err:
+        print(err)
         exit()
-    if len(set(arguments)) != NUM_ARGS:
-        print("ERROR: Duplicate ports given")
-        exit()
-    for arg in arguments:
-        if int(arg) <= 0:
-            print(f"ERROR: Given port '{arg}' is not a positive integer")
-            exit()
-    for arg in arguments:
-        if int(arg) < MIN_PORT or int(arg) > MAX_PORT:
-            print(f"ERROR: Given port '{arg}' is not in the range [1024, 64000]")
-            exit()
-    
     
     #create a seperate socket for each of the three languages. initialise sockets
     #here so they can be closed later if error occurs
