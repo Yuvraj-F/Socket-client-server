@@ -13,13 +13,13 @@ from socket import socket, AF_INET, SOCK_DGRAM
 from select import select
 
 #Globals
-NUM_ARGUMENTS = 3
+NUM_ARGS = 3
 MIN_PORT = 1024
 MAX_PORT = 64000
 
 
 """ dt-response format """
-MagicNo = 0x36FB                #Identifies packet as a DateTime packet (16-bits)
+MAGIC_NO = 0x36FB                #Identifies packet as a DateTime packet (16-bits)
 PacketType = 0x0002             #Identifies packet as a dt-request packet (16-bits)
 LanguageCode = "0x000(1|2|3)"     #Language used, 1 = English, 2 = Maori, 3 = German (16-bits)
 Year = 0x0000                   #The year as a non negative integer (16-bits)
@@ -31,7 +31,7 @@ Length = 0x00                   #Lenght of text in bytes (8-bits)
 Text = "variable"               #Text representation of response (variable)
 
 
-def create_socket(lang, port):
+def create_server_socket(lang, port):
     """ Before creating the socket, prints a status message which specifies the 
         language the socket is being used for and the associated port number.
         Creates and returns a new socket and binds it to the given port number."""
@@ -58,14 +58,12 @@ def main():
     
     #Get command line arguments
     arguments = argv[1:]
-    arguments = [5000, 5001, 5002]
     
-    
-    #Check for Errors
-    if len(arguments) != 3:
+    #Check for errors
+    if len(arguments) != NUM_ARGS:
         print("ERROR: Incorrect number of command line arguments")
         exit()
-    if len(set(arguments)) != 3:
+    if len(set(arguments)) != NUM_ARGS:
         print("ERROR: Duplicate ports given")
         exit()
     for arg in arguments:
