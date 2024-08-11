@@ -18,10 +18,16 @@ NUM_ARGS = 3
 MIN_PORT = 1024
 MAX_PORT = 64000
 MAGIC_NO = 0x36FB                #Identifies packet as a DateTime packet (16-bits)
-PACKET_TYPE = 0x0001             #Identifies packet as a dt-request packet (16-bits)
+REQUEST_PACKET_TYPE = 0x0001             #Identifies packet as a dt-request packet (16-bits)
 REQUEST_TYPE = {"date": 0x1,
                 "time": 0x2}        #Type of request. 1 = date, 2 = time (16-bits)
+LANG_REP = {1: "English",          #String representaion for each possible language 
+            2: "Māori",            # code in the dt_response packet.
+            3: "German"}           
 
+RESPONSE_HEADER_SIZE = 13       #Min length of a dt-response packet, i.e., the lenght of the header 
+RESPONSE_PACKET_CODE = 2
+MAX_YEAR = 2100
 
 def create_client_socket():
     """ """
@@ -44,7 +50,7 @@ def create_client_socket():
 def create_request_packet(request_type):
     """ Creates and returns a dt-request packet. """
     
-    #initialize packet of size 6 bytes
+    #Initialize packet of size 6 bytes
     packet = bytearray(6)
     
     #Set MagicNo field
@@ -52,7 +58,7 @@ def create_request_packet(request_type):
     packet[1] = MAGIC_NO & 0xff
     
     #Set PacketType field
-    packet[3] = PACKET_TYPE
+    packet[3] = REQUEST_PACKET_TYPE
     
     #Set RequestType field
     packet[5] = REQUEST_TYPE[request_type]
@@ -73,13 +79,12 @@ def validate_arguments(args):
         raise ValueError(f"ERROR: Request type '{args[0]}' is not valid")
         
     #Third argument must be positive and in the range [1024, 64000]
-    if int(args[2]) <= 0:
+    if not args[2].isdigit() or int(args[2]) <= 0:
         raise ValueError(f"ERROR: Given port '{args[2]}' is not a positive integer")
  
     if int(args[2]) < MIN_PORT or int(args[2]) > MAX_PORT:
         raise ValueError(f"ERROR: Given port '{args[2]}' is not in the range [1024, 64000]")
  
-        
     #Second argument must be dotted ip address or hostname. If it can be resolved,
     #extracts the address to use for sending requests to hosts
     try:    
@@ -89,6 +94,46 @@ def validate_arguments(args):
    
         
     return services
+
+def validate_response(data):
+    """ Performs checks to validate dt-response packet. 
+        Raises ValueError if invalid. """
+    
+    if len(data) < RESPONSE_HEADER_SIZE:
+        raise ValueError("ERROR: Packet is too small to be a DT_Response")
+    
+    if data[0] != MAGIC_NO >> 8 or data[1] != MAGIC_NO & 0xff:
+        raise ValueError("ERROR: Packet magic number is incorrect")
+    
+    if data[3] != RESPONSE_PACKET_CODE:
+        raise ValueError("ERROR: Packet is not a DT_Response")
+    
+    if data[5] not in [1,2,3]:
+        raise ValueError("ERROR: Packet has invalid language")
+    
+    if data[6] << 8 | data[7] > MAX_YEAR:
+        raise ValueError("ERROR: Packet has invalid year")
+    
+    if data[8] < 1 or data[8] > 12:
+        raise ValueError("ERROR: Packet has invalid month")
+    
+    if data[9] < 1 or data[9] > 31:
+        raise ValueError("ERROR: Packet has invalid day")
+    
+    if data[10] < 0 or data[10] > 23:
+        raise ValueError("ERROR: Packet has invalid hour")
+    
+    if data[11] < 0 or data[11] > 59:
+        raise ValueError("ERROR: Packet has invalid minute")
+    
+    if len(data) != (13 + data[12]):
+        raise ValueError("ERROR: Packet text length is incorrect")
+    
+    try:
+        decoded_text = data[13:].decode("utf-8")
+    except UnicodeDecodeError:
+        raise ValueError("ERROR: Packet has invalid text")
+    
     
 def exit_client(socket):
     socket.close()
@@ -114,20 +159,52 @@ def main():
     sock = create_client_socket()
         
     #Create dt_request packet    
-    packet = create_request_packet(arguments[0])
+    request_packet = create_request_packet(arguments[0])
     
     #Send dt_request packet to server
     try:
-        amount = sock.sendto(packet, server_address)
+        amount = sock.sendto(request_packet, server_address)
     except (OSError, TimeoutError):
         print("ERROR: Sending failed")
         exit_client(sock)
         
     #Status message if packet is sent to Server successfuly 
-    print(f"{arguments[0]} request sent to {server_address[0]}:{server_address[1]}")
+    print(f"{arguments[0].capitalize()} request sent to {server_address[0]}:{server_address[1]}")
+    
+    #Extract dt-response packet from socket
+    try:
+        recv_data = sock.recv(64)  
+        
+    #Timeout exceeded
+    except TimeoutError:
+        print("ERROR: Receiving timed out")
+        exit_client(sock)
+    
+    #Receiving failed
+    except OSError:
+        print("ERROR: Receiving failed")
+        exit_client(sock)
         
 
-    sock.close()
+    #Check packet validity
+    try:
+        validate_response(recv_data)
+    except ValueError as err:
+        print(err)
+        exit_client(sock)  
+
+    #Extract data from response packet
+    decoded_text = recv_data[13:].decode("utf-8")
+    month, day, year = recv_data[8], recv_data[9], recv_data[6] << 8 | recv_data[7]
+    hour, minute = recv_data[10], recv_data[11]
+    
+    #Print status message that shows the response 
+    print(f"{LANG_REP[recv_data[5]]} response received:")
+    print(f"Text: {decoded_text}")
+    print(f"Date: {day}/{month}/{year}")
+    print(f"Time: {hour:02d}:{minute:02d}")
+    
+    exit_client(sock)
     
 """ TEST COMMANDS """
 #python3 src/Client.py time localhost 15442

@@ -22,21 +22,11 @@ REQUEST_PACKET_SIZE = 6 #Bytes
 REQUEST_PACKET_CODE = 1
 REQUEST_TYPE = {0x1: "date",
                 0x2: "time"}        #Type of request. 1 = date, 2 = time (16-bits)
-
-
-""" dt-response format """
 MAGIC_NO = 0x36FB               #Identifies packet as a DateTime packet (16-bits)
-PACKET_TYPE = 0x0002            #Identifies packet as a dt-request packet (16-bits)
+RESPONSE_PACKET_TYPE = 0x0002            #Identifies packet as a dt-request packet (16-bits)
 LANG_REP = ["English",          #String representaion for each language 
             "Māori",            #English, Maori, and German (16-bits)
             "German"]
-Year = 0x0000                   #The year as a non negative integer (16-bits)
-Month = 0x00                    #The month between 1-12 (8-bits)
-Day = 0x00                      #The day between 1-31 (8-bits)
-Hour = 0x00                     #The hour between 0-23 (8-bits)
-Minute = 0x00                   #The minute between 0-59 (8-bits)
-Length = 0x00                   #Lenght of text in bytes (8-bits)
-Text = "variable"               #Text representation of response (variable)
 
 MONTHS = {1: ("January", "Kohi-tātea", "Januar"),
           2: ("February", "Hui-tanguru", "Februar"),
@@ -50,7 +40,6 @@ MONTHS = {1: ("January", "Kohi-tātea", "Januar"),
           10: ("October", "Whiringa-ā-nuku", "Oktober"),
           11: ("November", "Whiringa-ā-rangi", "November"),
           12: ("December", "Hakihea", "Dezember"),}
-
 
 def create_server_socket(lang, port):
     """ Before creating the socket, prints a status message which specifies the 
@@ -72,15 +61,17 @@ def create_server_socket(lang, port):
         sock.bind(("localhost", port))
         sock.settimeout(1)
     except OSError:
+        sock.close()
         raise OSError("ERROR: Socket binding failed")
+        
     
     
     return sock
 
 
 def validate_request(data):
-    """ Performs checks to validate dt-request packet. return True if valid,
-        False otherwise."""
+    """ Performs checks to validate dt-request packet. 
+        Raises ValueError if invalid. """
     
     if len(data) != REQUEST_PACKET_SIZE:
         raise ValueError("ERROR: Packet length incorrect for a DT_Request, dropping packet")
@@ -99,7 +90,9 @@ def validate_request(data):
 def receive_packet(sockets):
     """ waits until one of the sockets are ready. Extracts and recieving socket, 
         recieved packet, and client address if packet is valid. Prints a status 
-        message before returning. """
+        message before returning. 
+        
+        Returns None if Error occurs"""
     
     #Print status message and wait until one of the sockets are ready to be recieved 
     print("Waiting for requests...")
@@ -165,15 +158,61 @@ def create_response_packet(data, lang_index, sock):
     #Fetch current date and time
     curr_datetime = datetime.now()
     
+    #Extract required date and time fields from the datetime object
+    day, month, year = curr_datetime.day, curr_datetime.month, curr_datetime.year
+    hour, minute = curr_datetime.hour, curr_datetime.minute    
+
     #Prepare enoded text based on request type
     encoded_text = create_text_repr(curr_datetime, lang_index, data[5]).encode("utf-8")
-    length_text = len(encoded_text)
     
-    print(encoded_text)
+    #Check to make sure text is at most 255 bytes
+    if len(encoded_text) > 255:
+        print("ERROR: Text too long, dropping packet")
+        return
+    
+    #Initialize packet with enough bytes to hold dt-response fixed fields (13-bytes) 
+    # and the encoded text
+    packet = bytearray(13 + len(encoded_text))
+    
+    #Set MagicNo field
+    packet[0] = MAGIC_NO >> 8
+    packet[1] = MAGIC_NO & 0xff
+    
+    #Set PacketType field
+    packet[3] = RESPONSE_PACKET_TYPE   
+    
+    #Set Language Code field. Computed as lang_index + 1
+    packet[5] = lang_index + 1
+    
+    #Set year
+    packet[6] = year >> 8
+    packet[7] = year & 0xff
+    
+    #Set month
+    packet[8] = month
+    
+    #Set day
+    packet[9] = day
+    
+    #Set hour
+    packet[10] = hour
+    
+    #Set minute
+    packet[11] = minute
+    
+    #Set length field which contains the length of the encoded text
+    packet[12] = len(encoded_text)
+    
+    #Set text field. i is an index into the packet bytearray initialised to 13
+    # as that is where the text field of a dt-response packet starts
+    i = 13
+    for byte in encoded_text:
+        packet[i] = byte
+        i+=1
+        
+    return packet
     
     
-
-
 def validate_arguments(args):
     """ makes sure the command line arguments are valid. """
     
@@ -184,7 +223,7 @@ def validate_arguments(args):
         raise ValueError("ERROR: Duplicate ports given")
         
     for arg in args:
-        if int(arg) <= 0:
+        if not arg.isdigit() or int(arg) <= 0:
             raise ValueError(f"ERROR: Given port '{arg}' is not a positive integer")
             
     for arg in args:
@@ -230,10 +269,35 @@ def main():
     #Enter receive loop until unhandeld error
     try:
         while True:
-            request_packet, client_address, sock = receive_packet(sockets)
+            
+            #Retrieve dt-request packet, sending client's address, and the socket
+            # which recieved the request packet
+            received_data = receive_packet(sockets)
+            
+            #recieve_packet can return None. So check for None case before 
+            # attempting to unpack return values
+            if received_data != None:
+                request_packet, client_address, sock = received_data
+            else:
+                continue
+            
+            #Create a dt-response packet. Can be None
             response_packet = create_response_packet(request_packet, sockets.index(sock), sock)
+            
+            #Send dt_response packet to client if response packet is not None
+            if response_packet != None:
+                try:
+                    amount = sock.sendto(response_packet, client_address)
+                except (OSError, TimeoutError):
+                    print("ERROR: Sending failed, dropping packet")
+                    continue
+            
+            #Print status message if response is sent successfully
+            print("Response sent")
+    
+                
     except Exception as err:
-        print(err)
+        print(f"ERROR: {err}")
     finally:
         exit_server(sockets)
     
