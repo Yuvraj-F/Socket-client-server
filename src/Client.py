@@ -107,8 +107,8 @@ def main():
         print(err)
         exit()
     
-    #extract address from services
-    family, sock_type, proto, canonname, address = services[0] 
+    #extract Server address from services
+    family, sock_type, proto, canonname, server_address = services[0] 
     
     #Create socket
     sock = create_client_socket()
@@ -118,10 +118,13 @@ def main():
     
     #Send dt_request packet to server
     try:
-        amount = sock.sendto(packet, address)
+        amount = sock.sendto(packet, server_address)
     except (OSError, TimeoutError):
         print("ERROR: Sending failed")
         exit_client(sock)
+        
+    #Status message if packet is sent to Server successfuly 
+    print(f"{arguments[0]} request sent to {server_address[0]}:{server_address[1]}")
         
 
     sock.close()

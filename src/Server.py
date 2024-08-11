@@ -103,14 +103,14 @@ def receive_packet(sockets):
     
     #Print status message and wait until one of the sockets are ready to be recieved 
     print("Waiting for requests...")
-    sock_list, _, _ = select(sockets, [], [], 20)
+    sock_list, write_sockets, err_sockets = select(sockets, [], [])
     
     #Extract socket to send response from
     sock = sock_list[0]
     
     #Extract dt-request packet and client address 
     try:
-        recv_data, client_address = sock.recvfrom(1024)  
+        recv_data, client_address = sock.recvfrom(64)  
         
     #Timeout exceeded
     except TimeoutError:
@@ -197,7 +197,8 @@ def exit_server(sockets):
     
     for sock in sockets:
         if sock != None:
-            sock.close()    
+            sock.close()   
+
     exit()
 
 def main():
@@ -235,13 +236,7 @@ def main():
         print(err)
     finally:
         exit_server(sockets)
-        
-    request_packet, client_address, sock = receive_packet(sockets)
-    response_packet = create_response_packet(request_packet, sockets.index(sock), sock)   
     
-    
-    
-       
     
 """ TEST COMMANDS """
 #python3 src/Server.py 15442 6484 31912
